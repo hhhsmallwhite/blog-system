@@ -19,6 +19,10 @@ import Me from '../pages/Me';
 // S3: 编辑器
 import Editor from '../pages/Editor';
 
+// S4: 发布流程与文章管理
+import Publish from '../pages/Publish';
+import MyArticles from '../pages/MyArticles';
+
 /**
  * 路由定义
  *
@@ -46,7 +50,11 @@ const routes: RouteObject[] = [
       { path: 'editor', element: <Editor /> },
       { path: 'editor/:id', element: <Editor /> },
 
-      // TODO: S4-S9 添加
+      // ---- S4: 发布流程与文章管理 ----
+      { path: 'editor/:id/publish', element: <Publish /> },
+      { path: 'my-articles', element: <MyArticles /> },
+
+      // TODO: S5-S9 添加
       // { path: 'articles/:slug', element: <ArticleDetail /> },
       // { path: ':username', element: <UserProfile /> },
       // { path: 'admin/*', element: <AdminLayout /> },
