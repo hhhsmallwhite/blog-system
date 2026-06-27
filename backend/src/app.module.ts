@@ -15,6 +15,9 @@ import { RedisModule } from './redis/redis.module';
 import { MailModule } from './mail/mail.module';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
+import { CategoryModule } from './category/category.module';
+import { TagModule } from './tag/tag.module';
+import { ArticleModule } from './article/article.module';
 
 /**
  * 应用根模块
@@ -85,11 +88,12 @@ import { UserModule } from './user/user.module';
     AuthModule,
     UserModule,
 
-    // TODO: S2-S9 逐步添加业务模块
-    // ArticleModule,
-    // CommentModule,
-    // CategoryModule,
-    // TagModule,
+    // ---- S2: 分类、标签、文章 CRUD ----
+    CategoryModule,
+    TagModule,
+    ArticleModule,
+
+    // TODO: S3-S9 逐步添加业务模块
     // UploadModule,
     // AdminModule,
     // AnalyticsModule,
