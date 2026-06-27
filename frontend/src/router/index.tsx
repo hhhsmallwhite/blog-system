@@ -23,6 +23,9 @@ import Editor from '../pages/Editor';
 import Publish from '../pages/Publish';
 import MyArticles from '../pages/MyArticles';
 
+// S5: 读者端
+import ArticleDetail from '../pages/ArticleDetail';
+
 /**
  * 路由定义
  *
@@ -54,8 +57,10 @@ const routes: RouteObject[] = [
       { path: 'editor/:id/publish', element: <Publish /> },
       { path: 'my-articles', element: <MyArticles /> },
 
-      // TODO: S5-S9 添加
-      // { path: 'articles/:slug', element: <ArticleDetail /> },
+      // ---- S5: 读者端 ----
+      { path: 'articles/:slug', element: <ArticleDetail /> },
+
+      // TODO: S6-S9 添加
       // { path: ':username', element: <UserProfile /> },
       // { path: 'admin/*', element: <AdminLayout /> },
     ],
