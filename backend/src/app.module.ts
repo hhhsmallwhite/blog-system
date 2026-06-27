@@ -18,6 +18,7 @@ import { UserModule } from './user/user.module';
 import { CategoryModule } from './category/category.module';
 import { TagModule } from './tag/tag.module';
 import { ArticleModule } from './article/article.module';
+import { UploadModule } from './upload/upload.module';
 
 /**
  * 应用根模块
@@ -93,8 +94,10 @@ import { ArticleModule } from './article/article.module';
     TagModule,
     ArticleModule,
 
-    // TODO: S3-S9 逐步添加业务模块
-    // UploadModule,
+    // ---- S3: 图片上传 ----
+    UploadModule,
+
+    // TODO: S4-S9 逐步添加业务模块
     // AdminModule,
     // AnalyticsModule,
     // SeoModule,

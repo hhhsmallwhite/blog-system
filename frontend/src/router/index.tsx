@@ -16,6 +16,9 @@ import ForgotPassword from '../pages/ForgotPassword';
 import ResetPassword from '../pages/ResetPassword';
 import Me from '../pages/Me';
 
+// S3: 编辑器
+import Editor from '../pages/Editor';
+
 /**
  * 路由定义
  *
@@ -39,9 +42,11 @@ const routes: RouteObject[] = [
       { path: 'reset-password', element: <ResetPassword /> },
       { path: 'me', element: <Me /> },
 
-      // TODO: S2-S9 添加
-      // { path: 'editor', element: <Editor /> },
-      // { path: 'editor/:id', element: <Editor /> },
+      // ---- S3: 编辑器 ----
+      { path: 'editor', element: <Editor /> },
+      { path: 'editor/:id', element: <Editor /> },
+
+      // TODO: S4-S9 添加
       // { path: 'articles/:slug', element: <ArticleDetail /> },
       // { path: ':username', element: <UserProfile /> },
       // { path: 'admin/*', element: <AdminLayout /> },
