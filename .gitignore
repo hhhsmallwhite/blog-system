@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Prisma
+backend/prisma/migrations/
+
+# Docker volumes
+docker/data/
+
+# WorkBuddy
+.workbuddy/
+
+# Temporary files
+tmp/
+temp/

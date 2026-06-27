@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Husky pre-commit hook — 仅检查暂存的文件
+
+# 运行 lint-staged（配置在根 package.json 中）
+npx lint-staged --verbose

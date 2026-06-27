@@ -1,0 +1,2099 @@
+openapi: 3.0.3
+info:
+  title: 博客系统 REST API
+  description: |
+    博客系统后端 REST API 规范，基于 PRD v1.0、架构设计 v1.0、数据库设计 v1.0。
+    
+    涵盖9个业务模块：Auth、User、Article、Comment、Category、Tag、Upload、Admin、Analytics，
+    共49个API端点。
+    
+    ## 认证方式
+    - Access Token: `Authorization: Bearer {access_token}`（有效期2小时）
+    - Refresh Token: HttpOnly Cookie（有效期7天/30天）
+    
+    ## 统一响应格式
+    ```json
+    { "code": 0, "message": "success", "data": { ... } }
+    ```
+  version: 1.0.0
+  contact:
+    name: 架构师 · 高见远
+    email: arch@example.com
+
+servers:
+  - url: https://api.blog.com/api/v1
+    description: 生产环境
+  - url: http://localhost:3000/api/v1
+    description: 本地开发
+
+tags:
+  - name: Auth
+    description: 认证模块（注册、登录、Token管理、密码重置）
+  - name: User
+    description: 用户模块（个人资料、公开主页）
+  - name: Article
+    description: 文章模块（草稿、发布、管理、读者端）
+  - name: Comment
+    description: 评论模块（创建、审核、删除）
+  - name: Category
+    description: 分类模块（CRUD、读者端分类列表）
+  - name: Tag
+    description: 标签模块（列表、标签下文章）
+  - name: Upload
+    description: 上传模块（图片上传、媒体库）
+  - name: Admin
+    description: 管理后台模块（统计、用户管理）
+  - name: Analytics
+    description: 分析统计模块（阅读量、趋势）
+  - name: SEO
+    description: SEO模块（Sitemap、RSS）
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access Token（有效期2小时）
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+      description: Refresh Token（HttpOnly Cookie）
+
+  schemas:
+    # === 通用响应 ===
+    ApiResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 业务状态码（0=成功）
+          example: 0
+        message:
+          type: string
+          description: 消息
+          example: success
+        data:
+          type: object
+          description: 业务数据
+    PaginatedResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 0
+        message:
+          type: string
+          example: success
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items: {}
+            total:
+              type: integer
+              example: 100
+            page:
+              type: integer
+              example: 1
+            per_page:
+              type: integer
+              example: 10
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 业务错误码
+          example: 40101
+        message:
+          type: string
+          description: 错误消息
+          example: 邮箱或密码错误
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+          description: 字段级错误详情（可选）
+
+    # === Auth ===
+    RegisterRequest:
+      type: object
+      required: [email, password, username]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: zhou@example.com
+        password:
+          type: string
+          minLength: 8
+          description: 密码（≥8位，含字母+数字）
+          example: Tech2026!
+        username:
+          type: string
+          minLength: 3
+          maxLength: 20
+          pattern: '^[a-zA-Z0-9_]+$'
+          description: 用户名（注册后不可改）
+          example: zhoujinbu
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: zhou@example.com
+        password:
+          type: string
+          example: Tech2026!
+        remember_me:
+          type: boolean
+          default: false
+          description: 延长Refresh Token至30天
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIs...
+        refresh_token:
+          type: string
+          example: dGhpcyBpcyBhIHJlZn...
+        expires_in:
+          type: integer
+          example: 7200
+        user:
+          $ref: '#/components/schemas/UserBasic'
+    RefreshResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIs...
+        expires_in:
+          type: integer
+          example: 7200
+
+    # === User ===
+    UserBasic:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        email:
+          type: string
+          example: zhou@example.com
+        username:
+          type: string
+          example: zhoujinbu
+        status:
+          type: string
+          enum: [pending_verification, active, suspended, deleted]
+          example: active
+        avatar:
+          type: string
+          nullable: true
+          example: https://cdn.blog.com/avatars/1.jpg
+        blog_name:
+          type: string
+          nullable: true
+          example: 周进步的技术博客
+        bio:
+          type: string
+          nullable: true
+          example: 后端工程师，专注分布式系统
+        roles:
+          type: array
+          items:
+            type: string
+          example: [author]
+    UserPublic:
+      type: object
+      properties:
+        username:
+          type: string
+          example: zhoujinbu
+        blog_name:
+          type: string
+          example: 周进步的技术博客
+        bio:
+          type: string
+          example: 后端工程师，专注分布式系统
+        avatar:
+          type: string
+          example: https://cdn.blog.com/avatars/1.jpg
+        social_links:
+          type: array
+          items:
+            $ref: '#/components/schemas/SocialLink'
+        post_count:
+          type: integer
+          example: 12
+        created_at:
+          type: string
+          format: date-time
+    SocialLink:
+      type: object
+      properties:
+        platform:
+          type: string
+          enum: [github, twitter, weibo, zhihu, linkedin, custom]
+          example: github
+        url:
+          type: string
+          example: https://github.com/zhoujinbu
+        display_name:
+          type: string
+          nullable: true
+          example: My Site
+        sort_order:
+          type: integer
+          example: 0
+    UpdateProfileRequest:
+      type: object
+      properties:
+        blog_name:
+          type: string
+          minLength: 5
+          maxLength: 50
+          nullable: true
+        bio:
+          type: string
+          maxLength: 200
+          nullable: true
+        avatar:
+          type: string
+          nullable: true
+          description: 头像URL（通过Upload获取）
+        social_links:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            required: [platform, url]
+            properties:
+              platform:
+                type: string
+                enum: [github, twitter, weibo, zhihu, linkedin, custom]
+              url:
+                type: string
+              display_name:
+                type: string
+                nullable: true
+
+    # === Article ===
+    ArticleCreateRequest:
+      type: object
+      required: [title, content]
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          example: 分布式系统设计笔记
+        content:
+          type: string
+          description: Markdown正文
+          example: '# 概述\n\n这是一篇关于分布式系统的技术笔记...'
+        category_id:
+          type: integer
+          nullable: true
+          example: 3
+        tags:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+          example: [分布式, 系统设计, 后端]
+        cover_image:
+          type: string
+          nullable: true
+        summary:
+          type: string
+          maxLength: 300
+          nullable: true
+        slug:
+          type: string
+          maxLength: 200
+          nullable: true
+    ArticleUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        content:
+          type: string
+        category_id:
+          type: integer
+          nullable: true
+        tags:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+        cover_image:
+          type: string
+          nullable: true
+        summary:
+          type: string
+          maxLength: 300
+        slug:
+          type: string
+          maxLength: 200
+          description: 仅草稿态可修改
+        allow_comment:
+          type: boolean
+          default: true
+    ArticleAutosaveRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+    ArticleListItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 101
+        slug:
+          type: string
+          nullable: true
+          example: distributed-system-2026
+        title:
+          type: string
+          example: 分布式系统设计笔记
+        summary:
+          type: string
+          nullable: true
+        cover_image:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, published, archived]
+          example: draft
+        category:
+          $ref: '#/components/schemas/CategoryBrief'
+        tags:
+          type: array
+          items:
+            type: string
+          example: [分布式, 系统设计]
+        word_count:
+          type: integer
+          example: 320
+        view_count:
+          type: integer
+          example: 0
+        comment_count:
+          type: integer
+          example: 0
+        like_count:
+          type: integer
+          example: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+    ArticlePublicListItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        title:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        cover_image:
+          type: string
+          nullable: true
+        category:
+          $ref: '#/components/schemas/CategoryBrief'
+        tags:
+          type: array
+          items:
+            type: string
+        view_count:
+          type: integer
+        comment_count:
+          type: integer
+        like_count:
+          type: integer
+        word_count:
+          type: integer
+        published_at:
+          type: string
+          format: date-time
+        author:
+          $ref: '#/components/schemas/AuthorBrief'
+    ArticleDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+          description: Markdown正文
+        summary:
+          type: string
+          nullable: true
+        cover_image:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, published, archived]
+        category_id:
+          type: integer
+          nullable: true
+        category:
+          $ref: '#/components/schemas/CategoryBrief'
+        tags:
+          type: array
+          items:
+            type: string
+        allow_comment:
+          type: boolean
+        word_count:
+          type: integer
+        version:
+          type: integer
+        view_count:
+          type: integer
+        comment_count:
+          type: integer
+        like_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+    ArticlePublicDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        summary:
+          type: string
+        cover_image:
+          type: string
+          nullable: true
+        category:
+          $ref: '#/components/schemas/CategoryBrief'
+        tags:
+          type: array
+          items:
+            type: string
+        view_count:
+          type: integer
+        comment_count:
+          type: integer
+        like_count:
+          type: integer
+        word_count:
+          type: integer
+        allow_comment:
+          type: boolean
+        published_at:
+          type: string
+          format: date-time
+        author:
+          $ref: '#/components/schemas/AuthorBrief'
+    AuthorBrief:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        avatar:
+          type: string
+          nullable: true
+        blog_name:
+          type: string
+          nullable: true
+
+    # === Comment ===
+    CommentCreateRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          maxLength: 1000
+          example: 很好的文章，受益匪浅！
+        parent_id:
+          type: integer
+          nullable: true
+          description: 回复评论ID（空=顶层评论）
+        nickname:
+          type: string
+          maxLength: 50
+          nullable: true
+          description: 游客昵称（未登录时必填）
+        guest_email:
+          type: string
+          format: email
+          nullable: true
+          description: 游客邮箱（未登录时必填）
+    CommentItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected, spam]
+        author:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            username:
+              type: string
+            avatar:
+              type: string
+              nullable: true
+        nickname:
+          type: string
+          nullable: true
+        parent_id:
+          type: integer
+          nullable: true
+        replies:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommentItem'
+        created_at:
+          type: string
+          format: date-time
+    CommentStatusUpdateRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected, spam]
+
+    # === Category ===
+    CategoryCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 50
+          example: 技术
+        description:
+          type: string
+          maxLength: 200
+          nullable: true
+        sort_order:
+          type: integer
+          default: 0
+    CategoryUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        description:
+          type: string
+          maxLength: 200
+        sort_order:
+          type: integer
+    CategoryBrief:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+    CategoryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        sort_order:
+          type: integer
+        post_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # === Tag ===
+    TagItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        usage_count:
+          type: integer
+
+    # === Upload ===
+    UploadItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        url:
+          type: string
+        thumbnail_url:
+          type: string
+          nullable: true
+        original_name:
+          type: string
+        mime_type:
+          type: string
+        file_size:
+          type: integer
+        width:
+          type: integer
+          nullable: true
+        height:
+          type: integer
+          nullable: true
+        type:
+          type: string
+          enum: [image, document, video]
+        created_at:
+          type: string
+          format: date-time
+
+    # === Admin ===
+    AdminStats:
+      type: object
+      properties:
+        total_articles:
+          type: integer
+        published_articles:
+          type: integer
+        draft_articles:
+          type: integer
+        total_comments:
+          type: integer
+        pending_comments:
+          type: integer
+        total_views_today:
+          type: integer
+        total_views_month:
+          type: integer
+        total_likes:
+          type: integer
+        recent_articles:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              title:
+                type: string
+              status:
+                type: string
+              published_at:
+                type: string
+                format: date-time
+    AdminUserItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        username:
+          type: string
+        blog_name:
+          type: string
+          nullable: true
+        avatar:
+          type: string
+          nullable: true
+        roles:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+        post_count:
+          type: integer
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    UserStatusUpdateRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [suspended, active]
+        reason:
+          type: string
+          nullable: true
+    UserRoleUpdateRequest:
+      type: object
+      required: [roles]
+      properties:
+        roles:
+          type: array
+          items:
+            type: string
+          example: [author, admin]
+
+    # === Analytics ===
+    ViewRecordRequest:
+      type: object
+      properties:
+        article_id:
+          type: integer
+          nullable: true
+        slug:
+          type: string
+          nullable: true
+      description: article_id 和 slug 二选一
+    ArticleStats:
+      type: object
+      properties:
+        article_id:
+          type: integer
+        total_views:
+          type: integer
+        unique_visitors:
+          type: integer
+        daily_stats:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              view_count:
+                type: integer
+              unique_visitor_count:
+                type: integer
+        period:
+          type: string
+    TrendsResponse:
+      type: object
+      properties:
+        period:
+          type: string
+        metric:
+          type: string
+          enum: [views, visitors, comments]
+        total:
+          type: integer
+        daily:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              value:
+                type: integer
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PerPageParam:
+      name: per_page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
+    UsernameParam:
+      name: username
+      in: path
+      required: true
+      schema:
+        type: string
+    ArticleIdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    SlugParam:
+      name: slug
+      in: path
+      required: true
+      schema:
+        type: string
+    CommentIdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    CategoryIdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    UploadIdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    UserIdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+
+# ============================================================
+# PATHS
+# ============================================================
+paths:
+  # === Auth ===
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: 注册
+      description: 邮箱+密码注册，注册后发送验证邮件
+      operationId: authRegister
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string, example: 注册成功，验证邮件已发送 }
+                  data:
+                    type: object
+                    properties:
+                      id: { type: integer, example: 1 }
+                      email: { type: string, example: zhou@example.com }
+                      username: { type: string, example: zhoujinbu }
+                      status: { type: string, example: pending_verification }
+        '409':
+          description: 邮箱已被注册(40901) / 用户名已被占用(40902)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 参数校验错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: 注册频率超限(42901)
+
+  /auth/verify-email:
+    post:
+      tags: [Auth]
+      summary: 验证邮箱
+      operationId: authVerifyEmail
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        '200':
+          description: 验证成功（同时返回JWT）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string }
+                  data:
+                    $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Token无效或已过期(40001)
+        '404':
+          description: 用户不存在(40401)
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 登录
+      operationId: authLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string }
+                  data:
+                    $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: 邮箱或密码错误(40101) / 邮箱未验证(40102) / 账号冻结(40103)
+        '429':
+          description: 登录锁定(42902)
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: 刷新Token
+      operationId: authRefresh
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string }
+                  data:
+                    $ref: '#/components/schemas/RefreshResponse'
+        '401':
+          description: Refresh Token无效(40104) / 已撤销(40105)
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 登出
+      operationId: authLogout
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string }
+                  data: { type: object, nullable: true }
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: 忘记密码（发送重置邮件）
+      operationId: authForgotPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: 无论邮箱是否存在都返回200（防枚举）
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: 重置密码
+      operationId: authResetPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string }
+                password: { type: string, minLength: 8 }
+      responses:
+        '200':
+          description: 重置成功
+        '400':
+          description: Token无效或已过期(40002)
+        '422':
+          description: 密码不符合强度(42201)
+
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: 修改密码（已登录用户）
+      operationId: authChangePassword
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [old_password, new_password]
+              properties:
+                old_password: { type: string }
+                new_password: { type: string, minLength: 8 }
+      responses:
+        '200':
+          description: 修改成功（撤销所有RefreshToken）
+        '401':
+          description: 当前密码错误(40106)
+        '422':
+          description: 新密码不符合强度(42201)
+
+  # === User ===
+  /users/me:
+    get:
+      tags: [User]
+      summary: 获取当前用户信息
+      operationId: getUserMe
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/UserBasic'
+                      - type: object
+                        properties:
+                          social_links:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/SocialLink'
+                          post_count:
+                            type: integer
+                          created_at: { type: string, format: date-time }
+                          updated_at: { type: string, format: date-time }
+    patch:
+      tags: [User]
+      summary: 更新用户资料
+      operationId: updateUserMe
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: 更新成功
+        '422':
+          description: 校验错误(42204/42205/42206)
+
+  /users/{username}:
+    get:
+      tags: [User]
+      summary: 获取用户公开主页
+      operationId: getUserPublic
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UsernameParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    $ref: '#/components/schemas/UserPublic'
+        '404':
+          description: 用户不存在(40402)
+
+  /users/{username}/articles:
+    get:
+      tags: [User, Article]
+      summary: 获取用户公开文章列表（读者端）
+      operationId: getUserArticles
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UsernameParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: category_slug
+          in: query
+          schema: { type: string }
+        - name: tag
+          in: query
+          schema: { type: string }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [published_at, view_count], default: published_at }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ArticlePublicListItem'
+                      total: { type: integer }
+                      page: { type: integer }
+                      per_page: { type: integer }
+        '404':
+          description: 用户不存在(40402)
+
+  /users/{username}/archives:
+    get:
+      tags: [User, Article]
+      summary: 获取归档页面数据
+      operationId: getUserArchives
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UsernameParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    type: object
+                    properties:
+                      years:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            year: { type: integer }
+                            months:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  month: { type: integer }
+                                  count: { type: integer }
+                                  articles:
+                                    type: array
+                                    items:
+                                      type: object
+                                      properties:
+                                        id: { type: integer }
+                                        slug: { type: string }
+                                        title: { type: string }
+                                        published_at: { type: string, format: date-time }
+                            total: { type: integer }
+
+  /users/{username}/categories:
+    get:
+      tags: [User, Category]
+      summary: 获取用户公开分类列表（读者端）
+      operationId: getUserCategories
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UsernameParam'
+      responses:
+        '200':
+          description: 成功
+
+  /users/{username}/tags:
+    get:
+      tags: [User, Tag]
+      summary: 获取用户关联标签列表
+      operationId: getUserTags
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UsernameParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TagItem'
+
+  /users/{username}/feed.xml:
+    get:
+      tags: [User, SEO]
+      summary: 获取用户RSS Feed
+      operationId: getUserFeed
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UsernameParam'
+      responses:
+        '200':
+          description: RSS XML
+          content:
+            application/rss+xml:
+              schema:
+                type: string
+
+  # === Article ===
+  /articles:
+    post:
+      tags: [Article]
+      summary: 创建草稿
+      operationId: createArticle
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArticleCreateRequest'
+      responses:
+        '201':
+          description: 草稿创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    $ref: '#/components/schemas/ArticleDetail'
+        '422':
+          description: 参数校验错误
+    get:
+      tags: [Article]
+      summary: 获取我的文章列表（管理端）
+      operationId: listMyArticles
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: status
+          in: query
+          schema: { type: string, enum: [draft, published, archived, all], default: all }
+        - name: category_id
+          in: query
+          schema: { type: integer }
+        - name: tag
+          in: query
+          schema: { type: string }
+        - name: keyword
+          in: query
+          schema: { type: string }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [updated_at, created_at, published_at], default: updated_at }
+        - name: order
+          in: query
+          schema: { type: string, enum: [desc, asc], default: desc }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ArticleListItem'
+                      total: { type: integer }
+                      page: { type: integer }
+                      per_page: { type: integer }
+
+  /articles/{id}:
+    get:
+      tags: [Article]
+      summary: 获取文章详情（管理端-按ID）
+      operationId: getArticleById
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    $ref: '#/components/schemas/ArticleDetail'
+        '403':
+          description: 不是文章作者(40301)
+        '404':
+          description: 文章不存在(40403)
+    patch:
+      tags: [Article]
+      summary: 更新文章
+      operationId: updateArticle
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArticleUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+        '403':
+          description: 不是文章作者(40301)
+        '404':
+          description: 文章不存在(40403)
+        '409':
+          description: slug冲突(40903)
+    delete:
+      tags: [Article]
+      summary: 删除文章（软删除）
+      operationId: deleteArticle
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+      responses:
+        '204':
+          description: 删除成功（无返回体）
+        '403':
+          description: 不是文章作者(40301)
+        '404':
+          description: 文章不存在(40403)
+
+  /articles/{id}/autosave:
+    put:
+      tags: [Article]
+      summary: 自动保存草稿
+      operationId: autosaveArticle
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArticleAutosaveRequest'
+      responses:
+        '200':
+          description: 保存成功
+        '403':
+          description: 不是文章作者(40301)
+        '404':
+          description: 文章不存在(40403)
+        '422':
+          description: 已发布不可自动保存(42211)
+
+  /articles/{id}/publish:
+    post:
+      tags: [Article]
+      summary: 发布文章
+      operationId: publishArticle
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+      responses:
+        '200':
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    type: object
+                    properties:
+                      id: { type: integer }
+                      slug: { type: string }
+                      title: { type: string }
+                      status: { type: string, example: published }
+                      version: { type: integer }
+                      published_at: { type: string, format: date-time }
+                      url: { type: string }
+        '403':
+          description: 不是文章作者(40301)
+        '404':
+          description: 文章不存在(40403)
+        '409':
+          description: slug冲突(40903)
+        '422':
+          description: 缺少必填字段(42210)
+
+  /articles/{id}/unpublish:
+    post:
+      tags: [Article]
+      summary: 取消发布（回退为草稿）
+      operationId: unpublishArticle
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+      responses:
+        '200':
+          description: 取消成功
+
+  /articles/{slug}:
+    get:
+      tags: [Article]
+      summary: 获取公开文章详情（读者端-按slug）
+      operationId: getArticleBySlug
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SlugParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    $ref: '#/components/schemas/ArticlePublicDetail'
+        '404':
+          description: 文章不存在或未发布(40403)
+
+  /articles/{id}/stats:
+    get:
+      tags: [Article, Analytics]
+      summary: 获取文章阅读统计
+      operationId: getArticleStats
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - name: period
+          in: query
+          schema: { type: string, enum: [7d, 30d, 90d, all], default: 30d }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    $ref: '#/components/schemas/ArticleStats'
+
+  # === Comment ===
+  /articles/{slug}/comments:
+    post:
+      tags: [Comment]
+      summary: 创建评论
+      operationId: createComment
+      security:
+        - BearerAuth: []
+        - {}  # 游客也可评论
+      parameters:
+        - $ref: '#/components/parameters/SlugParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentCreateRequest'
+      responses:
+        '201':
+          description: 评论创建成功
+        '403':
+          description: 文章不允许评论(40302)
+        '404':
+          description: 文章不存在(40403)
+        '422':
+          description: 校验错误(42213/42214)
+        '429':
+          description: 评论频率超限(42903)
+    get:
+      tags: [Comment]
+      summary: 获取文章评论列表（读者端）
+      operationId: listArticleComments
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SlugParam'
+        - $ref: '#/components/parameters/PageParam'
+        - name: per_page
+          in: query
+          schema: { type: integer, default: 20, maximum: 50 }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [created_at, oldest], default: created_at }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CommentItem'
+                      total: { type: integer }
+                      page: { type: integer }
+                      per_page: { type: integer }
+
+  /comments:
+    get:
+      tags: [Comment]
+      summary: 获取评论列表（管理端）
+      operationId: listComments
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, approved, rejected, spam, all] }
+        - name: article_id
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 成功
+
+  /comments/{id}/status:
+    patch:
+      tags: [Comment]
+      summary: 审核评论
+      operationId: reviewComment
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CommentIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentStatusUpdateRequest'
+      responses:
+        '200':
+          description: 审核成功
+        '403':
+          description: 不是文章作者且非管理员(40303)
+        '404':
+          description: 评论不存在(40404)
+
+  /comments/{id}:
+    delete:
+      tags: [Comment]
+      summary: 删除评论
+      operationId: deleteComment
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CommentIdParam'
+      responses:
+        '204':
+          description: 删除成功
+        '403':
+          description: 无权限(40303)
+
+  # === Category ===
+  /categories:
+    post:
+      tags: [Category]
+      summary: 创建分类
+      operationId: createCategory
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+        '409':
+          description: 同名分类已存在(40904)
+    get:
+      tags: [Category]
+      summary: 获取我的分类列表
+      operationId: listMyCategories
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CategoryItem'
+
+  /categories/{id}:
+    patch:
+      tags: [Category]
+      summary: 更新分类
+      operationId: updateCategory
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CategoryIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+        '403':
+          description: 不是分类所有者(40304)
+        '404':
+          description: 分类不存在(40405)
+    delete:
+      tags: [Category]
+      summary: 删除分类
+      operationId: deleteCategory
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CategoryIdParam'
+      responses:
+        '204':
+          description: 删除成功
+        '403':
+          description: 不是分类所有者(40304)
+        '404':
+          description: 分类不存在(40405)
+
+  # === Tag ===
+  /tags:
+    get:
+      tags: [Tag]
+      summary: 获取标签列表（全局）
+      operationId: listTags
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - name: per_page
+          in: query
+          schema: { type: integer, default: 50, maximum: 100 }
+        - name: keyword
+          in: query
+          schema: { type: string }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [usage_count, name, created_at], default: usage_count }
+        - name: order
+          in: query
+          schema: { type: string, enum: [desc, asc], default: desc }
+      responses:
+        '200':
+          description: 成功
+
+  /tags/{slug}/articles:
+    get:
+      tags: [Tag, Article]
+      summary: 获取标签下的文章列表
+      operationId: listTagArticles
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: 成功
+
+  # === Upload ===
+  /uploads:
+    post:
+      tags: [Upload]
+      summary: 上传图片
+      operationId: uploadFile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: JPG/PNG/GIF/WebP, ≤5MB
+                type:
+                  type: string
+                  enum: [article, avatar, cover]
+                  default: article
+      responses:
+        '201':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    $ref: '#/components/schemas/UploadItem'
+        '422':
+          description: 文件格式不支持(42215) / 大小超限(42216)
+        '429':
+          description: 上传频率超限(42904)
+    get:
+      tags: [Upload]
+      summary: 获取媒体库列表
+      operationId: listUploads
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - name: per_page
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: type
+          in: query
+          schema: { type: string, enum: [image, all], default: all }
+      responses:
+        '200':
+          description: 成功
+
+  /uploads/{id}:
+    delete:
+      tags: [Upload]
+      summary: 删除上传文件
+      operationId: deleteUpload
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UploadIdParam'
+      responses:
+        '204':
+          description: 删除成功
+        '403':
+          description: 不是文件所有者(40305)
+        '404':
+          description: 文件不存在(40406)
+
+  # === Admin ===
+  /admin/stats:
+    get:
+      tags: [Admin]
+      summary: 管理端统计概览
+      operationId: getAdminStats
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    $ref: '#/components/schemas/AdminStats'
+
+  /admin/articles:
+    get:
+      tags: [Admin]
+      summary: 管理端文章列表（所有用户）
+      operationId: listAdminArticles
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: author_id
+          in: query
+          schema: { type: integer }
+        - name: keyword
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: 成功
+
+  /admin/comments:
+    get:
+      tags: [Admin]
+      summary: 管理端评论列表（所有用户）
+      operationId: listAdminComments
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: status
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: 成功
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: 管理端用户列表（仅超级管理员）
+      operationId: listAdminUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: keyword
+          in: query
+          schema: { type: string }
+        - name: role
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AdminUserItem'
+                      total: { type: integer }
+                      page: { type: integer }
+                      per_page: { type: integer }
+
+  /admin/users/{id}/status:
+    patch:
+      tags: [Admin]
+      summary: 冻结/解冻用户
+      operationId: updateUserStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserStatusUpdateRequest'
+      responses:
+        '200':
+          description: 成功
+
+  /admin/users/{id}/roles:
+    patch:
+      tags: [Admin]
+      summary: 修改用户角色
+      operationId: updateUserRoles
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRoleUpdateRequest'
+      responses:
+        '200':
+          description: 成功
+
+  # === Analytics ===
+  /analytics/views:
+    post:
+      tags: [Analytics]
+      summary: 记录文章阅读
+      operationId: recordView
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ViewRecordRequest'
+      responses:
+        '200':
+          description: 已记录
+
+  /analytics/trends:
+    get:
+      tags: [Analytics]
+      summary: 获取整体统计趋势
+      operationId: getTrends
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema: { type: string, enum: [7d, 30d, 90d], default: 30d }
+        - name: metric
+          in: query
+          schema: { type: string, enum: [views, visitors, comments], default: views }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data:
+                    $ref: '#/components/schemas/TrendsResponse'

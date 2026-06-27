@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+# Husky pre-push hook — 推送前运行类型检查
+
+echo "🔍 运行类型检查..."
+
+# 后端类型检查
+if [ -d "backend" ]; then
+  echo "→ 后端 TypeScript 类型检查..."
+  cd backend && npx tsc --noEmit || { echo "❌ 后端类型检查失败"; exit 1; }
+  cd ..
+fi
+
+# 前端类型检查
+if [ -d "frontend" ]; then
+  echo "→ 前端 TypeScript 类型检查..."
+  cd frontend && npx tsc --noEmit || { echo "❌ 前端类型检查失败"; exit 1; }
+  cd ..
+fi
+
+echo "✅ 类型检查通过"

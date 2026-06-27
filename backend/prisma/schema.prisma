@@ -1,0 +1,510 @@
+// ===================================================================
+// 博客系统 Prisma Schema — 18 张表全量定义
+// 版本: v1.0 | 日期: 2026-06-27
+// 依赖: PostgreSQL 16
+// ===================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================================================================
+// Enums
+// ===================================================================
+
+/// 用户账号状态
+enum UserStatus {
+  pending_verification /// 注册未验证
+  active               /// 正常活跃
+  suspended            /// 被冻结
+  deleted              /// 已删除
+}
+
+/// 文章状态
+enum ArticleStatus {
+  draft     /// 草稿
+  published /// 已发布
+  archived  /// 已归档
+}
+
+/// 内容类型
+enum ContentType {
+  markdown  /// Markdown 格式
+  rich_text /// 富文本（v1.2 扩展）
+}
+
+/// 评论状态
+enum CommentStatus {
+  pending  /// 待审核
+  approved /// 已通过
+  rejected /// 已拒绝
+  spam     /// 垃圾评论
+}
+
+/// 上传文件类型
+enum UploadType {
+  image    /// 图片
+  document /// 文档
+  video    /// 视频（未来扩展）
+}
+
+/// 验证 Token 类型
+enum VerificationTokenType {
+  email_verification /// 邮箱验证
+  password_reset     /// 密码重置
+}
+
+/// 通知类型
+enum NotificationType {
+  comment /// 评论通知
+  system  /// 系统通知
+  like    /// 点赞通知
+  follow  /// 关注通知
+}
+
+/// 社交平台标识
+enum SocialPlatform {
+  github
+  twitter
+  weibo
+  zhihu
+  linkedin
+  custom
+}
+
+// ===================================================================
+// 1. users — 用户表（核心实体）
+// ===================================================================
+model User {
+  id           Int        @id @default(autoincrement())
+  email        String     @unique @db.VarChar(255)
+  username     String     @unique @db.VarChar(20)
+  passwordHash String     @map("password_hash") @db.VarChar(255)
+  blogName     String?    @map("blog_name") @db.VarChar(50)
+  bio          String?    @db.VarChar(200)
+  avatar       String?    @db.VarChar(500)
+  status       UserStatus @default(pending_verification)
+  lastLoginAt  DateTime?  @map("last_login_at")
+  lastLoginIp  String?    @map("last_login_ip") @db.VarChar(45)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  deletedAt    DateTime?  @map("deleted_at")
+
+  // Relations
+  socialLinks        SocialLink[]
+  articles           Article[]
+  comments           Comment[]
+  likes              Like[]
+  uploads            Upload[]
+  notifications      Notification[]      @relation("NotificationReceiver")
+  sentNotifications  Notification[]      @relation("NotificationSender")
+  refreshTokens      RefreshToken[]
+  verificationTokens VerificationToken[]
+  operationLogs      OperationLog[]
+  categories         Category[]
+  userRoles          UserRole[]
+
+  @@index([status])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+// ===================================================================
+// 2. roles — 角色表
+// ===================================================================
+model Role {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique @db.VarChar(50)
+  description String?   @db.VarChar(200)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  userRoles        UserRole[]
+  rolePermissions  RolePermission[]
+
+  @@map("roles")
+}
+
+// ===================================================================
+// 3. permissions — 权限表
+// ===================================================================
+model Permission {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique @db.VarChar(100)
+  module      String    @db.VarChar(50)
+  action      String    @db.VarChar(30)
+  description String?   @db.VarChar(200)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@index([module])
+  @@index([module, action])
+  @@map("permissions")
+}
+
+// ===================================================================
+// 4. user_roles — 用户-角色关联表
+// ===================================================================
+model UserRole {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  roleId    Int      @map("role_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+// ===================================================================
+// 5. role_permissions — 角色-权限关联表
+// ===================================================================
+model RolePermission {
+  id           Int      @id @default(autoincrement())
+  roleId       Int      @map("role_id")
+  permissionId Int      @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// ===================================================================
+// 6. social_links — 社交链接表
+// ===================================================================
+model SocialLink {
+  id          Int            @id @default(autoincrement())
+  userId      Int            @map("user_id")
+  platform    SocialPlatform @default(custom)
+  url         String         @db.VarChar(500)
+  displayName String?        @map("display_name") @db.VarChar(50)
+  sortOrder   Int            @default(0) @map("sort_order")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("social_links")
+}
+
+// ===================================================================
+// 7. articles — 文章表（核心业务实体）
+// ===================================================================
+model Article {
+  id              Int           @id @default(autoincrement())
+  authorId        Int           @map("author_id")
+  slug            String?       @unique @db.VarChar(200)
+  title           String        @db.VarChar(200)
+  content         String        @db.Text
+  summary         String?       @db.VarChar(300)
+  coverImage      String?       @map("cover_image") @db.VarChar(500)
+  categoryId      Int?          @map("category_id")
+  status          ArticleStatus @default(draft)
+  contentType     ContentType   @default(markdown) @map("content_type")
+  metaTitle       String?       @map("meta_title") @db.VarChar(200)
+  metaDescription String?       @map("meta_description") @db.VarChar(300)
+  isFeatured      Boolean       @default(false) @map("is_featured")
+  allowComment    Boolean       @default(true) @map("allow_comment")
+  wordCount       Int?          @map("word_count")
+  version         Int           @default(1)
+  publishedAt     DateTime?     @map("published_at")
+  scheduledAt     DateTime?     @map("scheduled_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?     @map("deleted_at")
+
+  // 冗余字段（避免 JOIN 查询）
+  commentCount Int  @default(0) @map("comment_count")
+  likeCount    Int  @default(0) @map("like_count")
+  categoryName String? @map("category_name") @db.VarChar(50)
+  authorName   String? @map("author_name") @db.VarChar(50)
+  authorAvatar String? @map("author_avatar") @db.VarChar(500)
+
+  // Relations
+  author           User              @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  category         Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  articleTags      ArticleTag[]
+  comments         Comment[]
+  likes            Like[]
+  articleViewDaily ArticleViewDaily[]
+
+  @@index([authorId])
+  @@index([status])
+  @@index([categoryId])
+  @@index([publishedAt(sort: Desc)])
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([authorId, status])
+  @@index([deletedAt])
+  @@map("articles")
+}
+
+// ===================================================================
+// 8. categories — 分类表（按用户隔离）
+// ===================================================================
+model Category {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @map("user_id")
+  name        String    @db.VarChar(50)
+  slug        String?   @db.VarChar(60)
+  description String?   @db.VarChar(200)
+  sortOrder   Int       @default(0) @map("sort_order")
+  parentId    Int?      @map("parent_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  // Relations
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent     Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Category[] @relation("CategoryHierarchy")
+  articles   Article[]
+
+  @@unique([userId, name])
+  @@unique([userId, slug])
+  @@index([userId])
+  @@index([parentId])
+  @@map("categories")
+}
+
+// ===================================================================
+// 9. tags — 标签表（全局共享）
+// ===================================================================
+model Tag {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique @db.VarChar(50)
+  slug       String?  @unique @db.VarChar(60)
+  usageCount Int      @default(0) @map("usage_count")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  articleTags ArticleTag[]
+
+  @@map("tags")
+}
+
+// ===================================================================
+// 10. article_tags — 文章-标签关联表
+// ===================================================================
+model ArticleTag {
+  id        Int      @id @default(autoincrement())
+  articleId Int      @map("article_id")
+  tagId     Int      @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Restrict)
+
+  @@unique([articleId, tagId])
+  @@index([articleId])
+  @@index([tagId])
+  @@map("article_tags")
+}
+
+// ===================================================================
+// 11. comments — 评论表（树状结构）
+// ===================================================================
+model Comment {
+  id         Int           @id @default(autoincrement())
+  articleId  Int           @map("article_id")
+  authorId   Int?          @map("author_id")
+  parentId   Int?          @map("parent_id")
+  nickname   String?       @db.VarChar(50)
+  guestEmail String?       @map("guest_email") @db.VarChar(255)
+  content    String        @db.Text
+  status     CommentStatus @default(pending)
+  ipAddress  String?       @map("ip_address") @db.VarChar(45)
+  userAgent  String?       @map("user_agent") @db.VarChar(500)
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+  deletedAt  DateTime?     @map("deleted_at")
+
+  // Relations
+  article  Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author   User?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Comment[] @relation("CommentReplies")
+
+  @@index([articleId])
+  @@index([articleId, status])
+  @@index([parentId])
+  @@index([authorId])
+  @@index([status])
+  @@map("comments")
+}
+
+// ===================================================================
+// 12. likes — 点赞表
+// ===================================================================
+model Like {
+  id          Int      @id @default(autoincrement())
+  articleId   Int      @map("article_id")
+  userId      Int?     @map("user_id")
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  fingerprint String?  @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, userId])
+  @@index([articleId])
+  @@index([userId])
+  @@map("likes")
+}
+
+// ===================================================================
+// 13. uploads — 上传文件表
+// ===================================================================
+model Upload {
+  id           Int        @id @default(autoincrement())
+  userId       Int        @map("user_id")
+  originalName String     @map("original_name") @db.VarChar(255)
+  storageKey   String     @map("storage_key") @db.VarChar(500)
+  url          String     @db.VarChar(500)
+  thumbnailUrl String?    @map("thumbnail_url") @db.VarChar(500)
+  mimeType     String     @map("mime_type") @db.VarChar(100)
+  fileSize     Int        @map("file_size")
+  width        Int?
+  height       Int?
+  type         UploadType @default(image)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  deletedAt    DateTime?  @map("deleted_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("uploads")
+}
+
+// ===================================================================
+// 14. notifications — 通知表
+// ===================================================================
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int              @map("user_id")
+  type      NotificationType
+  title     String           @db.VarChar(200)
+  content   String?          @db.Text
+  link      String?          @db.VarChar(500)
+  senderId  Int?             @map("sender_id")
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  user   User  @relation("NotificationReceiver", fields: [userId], references: [id], onDelete: Cascade)
+  sender User? @relation("NotificationSender", fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead])
+  @@index([userId])
+  @@map("notifications")
+}
+
+// ===================================================================
+// 15. article_view_daily — 每日阅读统计表
+// ===================================================================
+model ArticleViewDaily {
+  id                 Int      @id @default(autoincrement())
+  articleId          Int      @map("article_id")
+  viewDate           DateTime @map("view_date") @db.Date
+  viewCount          Int      @default(0) @map("view_count")
+  uniqueVisitorCount Int      @default(0) @map("unique_visitor_count")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, viewDate])
+  @@index([articleId, viewDate(sort: Desc)])
+  @@index([viewDate])
+  @@map("article_view_daily")
+}
+
+// ===================================================================
+// 16. refresh_tokens — Refresh Token 表
+// ===================================================================
+model RefreshToken {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  token      String   @unique @db.VarChar(500)
+  isRevoked  Boolean  @default(false) @map("is_revoked")
+  expiresAt  DateTime @map("expires_at")
+  deviceInfo String?  @map("device_info") @db.VarChar(200)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRevoked])
+  @@map("refresh_tokens")
+}
+
+// ===================================================================
+// 17. verification_tokens — 验证 Token 表
+// ===================================================================
+model VerificationToken {
+  id        Int                   @id @default(autoincrement())
+  userId    Int                   @map("user_id")
+  token     String                @unique @db.VarChar(100)
+  type      VerificationTokenType
+  expiresAt DateTime              @map("expires_at")
+  isUsed    Boolean               @default(false) @map("is_used")
+  createdAt DateTime              @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, isUsed])
+  @@map("verification_tokens")
+}
+
+// ===================================================================
+// 18. operation_logs — 操作日志表
+// ===================================================================
+model OperationLog {
+  id         BigInt   @id @default(autoincrement()) @db.BigInt
+  userId     Int?     @map("user_id")
+  module     String   @db.VarChar(50)
+  action     String   @db.VarChar(50)
+  targetType String?  @map("target_type") @db.VarChar(50)
+  targetId   Int?     @map("target_id")
+  detail     String?  @db.Text
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.VarChar(500)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([module, action])
+  @@index([createdAt(sort: Desc)])
+  @@map("operation_logs")
+}

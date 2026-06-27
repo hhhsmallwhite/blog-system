@@ -1,0 +1,83 @@
+services:
+  # ===================================================================
+  # PostgreSQL 16 — 主数据库
+  # ===================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: blog-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: blog_admin
+      POSTGRES_PASSWORD: blog_secret_dev
+      POSTGRES_DB: blog_db
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U blog_admin -d blog_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - blog-network
+
+  # ===================================================================
+  # Redis 7 — 缓存 + Session + 计数
+  # ===================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: blog-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - blog-network
+
+  # ===================================================================
+  # RabbitMQ 3.13 — 消息队列（异步任务）
+  # ===================================================================
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: blog-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: blog_admin
+      RABBITMQ_DEFAULT_PASS: blog_mq_secret_dev
+    ports:
+      - '5672:5672'    # AMQP 协议端口
+      - '15672:15672'  # Management UI
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', 'check_port_connectivity']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - blog-network
+
+volumes:
+  pgdata:
+    name: blog_pgdata
+  redisdata:
+    name: blog_redisdata
+  rabbitmqdata:
+    name: blog_rabbitmqdata
+
+networks:
+  blog-network:
+    name: blog-network
+    driver: bridge

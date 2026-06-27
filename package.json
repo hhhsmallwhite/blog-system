@@ -1,0 +1,42 @@
+{
+  "name": "blog-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "博客系统 — 面向个人创作者的轻量级博客平台",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm -w backend run start:dev",
+    "dev:frontend": "npm -w frontend run dev",
+    "build:backend": "npm -w backend run build",
+    "build:frontend": "npm -w frontend run build",
+    "lint": "npm -w backend run lint && npm -w frontend run lint",
+    "lint:fix": "npm -w backend run lint:fix && npm -w frontend run lint:fix",
+    "type-check": "npm -w backend run type-check && npm -w frontend run type-check",
+    "test": "npm -w backend run test",
+    "test:e2e": "npm -w backend run test:e2e",
+    "db:migrate": "npm -w backend run db:migrate",
+    "db:seed": "npm -w backend run db:seed",
+    "db:studio": "npm -w backend run db:studio",
+    "docker:up": "docker compose -f docker/docker-compose.yml up -d",
+    "docker:down": "docker compose -f docker/docker-compose.yml down",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10"
+  },
+  "lint-staged": {
+    "backend/**/*.{ts,js}": [
+      "npm -w backend run lint:fix"
+    ],
+    "frontend/**/*.{ts,tsx,js,jsx}": [
+      "npm -w frontend run lint:fix"
+    ],
+    "*.{json,md,yaml,yml,css}": [
+      "prettier --write"
+    ]
+  }
+}
