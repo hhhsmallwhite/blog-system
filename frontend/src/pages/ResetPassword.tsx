@@ -120,14 +120,15 @@ export default function ResetPassword() {
           </Stack>
         )}
 
-        {/* 空闲状态：显示表单 */}
-        {status === 'idle' && token && (
+        {/* 表单状态：idle 或 submitting（都显示表单） */}
+        {(status === 'idle' || status === 'submitting') && token && (
           <form onSubmit={form.onSubmit(handleSubmit)}>
             <Stack>
               <PasswordInput
                 required
                 label="新密码"
                 placeholder="至少 8 位"
+                disabled={status === 'submitting'}
                 {...form.getInputProps('password')}
               />
 
@@ -135,6 +136,7 @@ export default function ResetPassword() {
                 required
                 label="确认新密码"
                 placeholder="再次输入新密码"
+                disabled={status === 'submitting'}
                 {...form.getInputProps('confirmPassword')}
               />
 

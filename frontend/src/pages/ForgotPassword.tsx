@@ -60,8 +60,6 @@ export default function ForgotPassword() {
 
   return (
     <Container size={420} my={40}>
-      <LoadingOverlay visible={status === 'loading'} />
-
       <Title ta="center" fw={900} fz={28} mb={5}>
         忘记密码
       </Title>
@@ -73,31 +71,11 @@ export default function ForgotPassword() {
       </Text>
 
       <Paper withBorder shadow="md" p={30} mt={30} radius="md" pos="relative">
-        {/* 空闲状态：显示表单 */}
-        {status === 'idle' && (
-          <form onSubmit={form.onSubmit(handleSubmit)}>
-            <Stack>
-              <Text size="sm" c="dimmed">
-                请输入您注册时使用的邮箱地址，我们将向该邮箱发送密码重置链接。
-              </Text>
-
-              <TextInput
-                required
-                label="邮箱"
-                placeholder="your@email.com"
-                {...form.getInputProps('email')}
-                disabled={status === 'loading'}
-              />
-
-              <Button type="submit" fullWidth mt="xl" loading={status === 'loading'}>
-                发送重置邮件
-              </Button>
-            </Stack>
-          </form>
-        )}
+        {/* 加载状态遮罩 */}
+        <LoadingOverlay visible={status === 'loading'} />
 
         {/* 成功状态 */}
-        {status === 'success' && (
+        {status === 'success' ? (
           <Stack align="center" gap="md">
             <Box c="green">
               <IconCheck size={80} stroke={1.5} />
@@ -119,6 +97,27 @@ export default function ForgotPassword() {
               返回登录
             </Button>
           </Stack>
+        ) : (
+          /* 表单状态（idle 或 error） */
+          <form onSubmit={form.onSubmit(handleSubmit)}>
+            <Stack>
+              <Text size="sm" c="dimmed">
+                请输入您注册时使用的邮箱地址，我们将向该邮箱发送密码重置链接。
+              </Text>
+
+              <TextInput
+                required
+                label="邮箱"
+                placeholder="your@email.com"
+                {...form.getInputProps('email')}
+                disabled={status === 'loading'}
+              />
+
+              <Button type="submit" fullWidth mt="xl" loading={status === 'loading'}>
+                发送重置邮件
+              </Button>
+            </Stack>
+          </form>
         )}
       </Paper>
     </Container>

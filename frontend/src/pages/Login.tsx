@@ -17,7 +17,6 @@ import {
   Anchor,
   Group,
   Stack,
-  Box,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useAuthStore } from '../store/useAuthStore';
